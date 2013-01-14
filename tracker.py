@@ -75,7 +75,7 @@ class Task(object):
     if self.is_active():
       active_msg = "(in progress, started at: %s)" % fmt_datetime(self.times[-1].start)
 
-    return "%s:\t%.2d:%.2d %s" % (self.name, hours, minutes, active_msg)
+    return "%30s:\t%.2d:%.2d %s" % (self.name, hours, minutes, active_msg)
 
   def details(self):
     return '\n'.join([str(t) for t in self.times])
