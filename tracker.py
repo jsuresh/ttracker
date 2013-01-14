@@ -4,7 +4,7 @@
 Usage:
     tracker.py list
     tracker.py start <task> [<starttime>]
-    tracker.py stop <task> [<endtime>]
+    tracker.py stop [<endtime>]
     tracker.py rm <task>
     tracker.py details <task>
     tracker.py pop <task>
@@ -125,10 +125,18 @@ class TaskManager(object):
   def start(self, name, starttime):
     if name not in self.tasks:
       self.tasks[name] = Task(name)
+
+    # If there already exists an active task, stop it first
+    for t in self.tasks.values():
+      if t.is_active():
+        t.stop(self.parse_or_now(starttime))
+
     self.tasks[name].start(self.parse_or_now(starttime))
 
-  def stop(self, name, endtime):
-    self.tasks[name].stop(self.parse_or_now(endtime))
+  def stop(self, endtime):
+    for t in self.tasks.values():
+      if t.is_active():
+        t.stop(self.parse_or_now(endtime))
 
   def delete(self, name):
     del self.tasks[name]
@@ -166,7 +174,7 @@ if __name__ == '__main__':
   elif arguments['start']:
     tasks.start(arguments['<task>'], arguments['<starttime>'])
   elif arguments['stop']:
-    tasks.stop(arguments['<task>'], arguments['<endtime>'])
+    tasks.stop(arguments['<endtime>'])
   elif arguments['rm']:
     tasks.delete(arguments['<task>'])
   elif arguments['details']:
