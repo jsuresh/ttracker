@@ -46,9 +46,8 @@ class Task(object):
       print "ALERT: Looks like you worked for %d:%d" % (self.times[-1].hours_and_minutes())
       print "       This is longer than an 1hr. Bit suss..."
       print "       Can be fixed by called stop with an end time"
-      print self.times[-1]
-    else:
-      print self.times[-1]
+
+    print self.name, ':', self.times[-1]
 
   def is_active(self):
     return any([t.is_active() for t in self.times])
