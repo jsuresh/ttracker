@@ -151,13 +151,27 @@ class TaskManager(object):
     self.tasks[name].push(self.parse_or_now(starttime), self.parse_or_now(endtime))
 
   def parse_or_now(self, s):
+
     if s:
-      d = datetime.strptime(s, "%Y-%m-%d %H:%M")
+      d = self.try_parse_date(s, "%Y-%m-%d %H:%M")
+      if not d:
+        d = self.try_parse_date(datetime.now().strftime("%Y-%m-%d ") + s, "%Y-%m-%d %H:%M")
+
+      if not d:
+        raise ValueError, "Failed to parse %s as a datetime" % s
+
       if d > datetime.now():
         raise ValueError, "%s is in the future" % d
       return d
     else:
       return datetime.now()
+
+  def try_parse_date(self, s, fmt):
+    try:
+      d = datetime.strptime(s, fmt)
+      return d
+    except ValueError:
+      return None
 
 def fmt_datetime(d):
   return d.strftime("%Y-%m-%d %H:%M")
