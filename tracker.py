@@ -78,7 +78,8 @@ class Task(object):
 
   def details(self):
     return '\n'.join([str(t) for t in self.times])
-      
+
+     
 class Timeslice(object):
   def __init__(self, starttime=None):
     self.start = starttime or datetime.now()
@@ -118,7 +119,9 @@ class TaskManager(object):
     self.tasks = {}
 
   def show(self):
-    for t in self.tasks.values():
+    ts = self.tasks.values()
+    ts.sort(key=lambda t: t.name)
+    for t in ts:
       print t.summary()
 
   def start(self, name, starttime):
