@@ -7,6 +7,7 @@ The tool is meant to be used offline - it only syncs with freshbooks when
 you explicitly tell it too via the sync command.
 
 Usage:
+    ttracker.py init [<username> <apikey>]
     ttracker.py list
     ttracker.py delete <task>
     ttracker.py details <task>
@@ -18,6 +19,8 @@ Usage:
     ttracker.py projects [--display-from-cache]
     ttracker.py sync
 
+init:
+  Initialise ttracker. Should be the first command you run when you start using this script
 list: 
   Display all active tasks, along with a short summary
 delete: 
@@ -70,7 +73,7 @@ class Task(object):
     else:
       print "ERROR: Current task is already active"
     
-  def stop(self, endtime, max_entry_warning, notes=''):
+  def stop(self, endtime, notes='', max_entry_warning=60):
     if not self.is_active():
       print "ERROR: Current task isn't active (start it first)"
       return
@@ -88,7 +91,7 @@ class Task(object):
     print self.name, ':', self.entries[-1]
 
   def is_active(self):
-    return any([t.is_active() for t in self.entries])
+    return any([e.is_active() for e in self.entries])
 
   def pop(self):
     print "popping...", self.entries[-1]
@@ -97,11 +100,10 @@ class Task(object):
 
   def push(self, project, starttime, endtime, notes):
     ts = Entry(project, starttime, endtime, notes=notes)
-    ts.stop(endtime)
     self.entries.append(ts)
 
   def minutes(self):
-    return sum([t.minutes() for t in self.entries])
+    return sum([e.minutes() for e in self.entries])
 
   def hours_and_minutes(self):
     m = self.minutes()
@@ -118,7 +120,7 @@ class Task(object):
     return "%s:\t%.2d:%.2d %s" % (name_field, hours, minutes, active_msg)
 
   def details(self):
-    return '\n'.join([str(t) for t in self.entries])
+    return '\n'.join([str(e) for e in self.entries])
 
   def toJSON(self):
     return {
@@ -198,6 +200,19 @@ class TaskManager(object):
     self.projects = {}
     self.username = ''
     self.apikey = ''
+    self.load()
+
+  def initialise(self, username, apikey):
+    if not self.has_freshbooks_credentials():
+      print "Storing credentials for the freshbooks API (can be changed with 'ttracker.py config')"
+      self.config(username, apikey)
+
+    if not self.projects:
+      print "Downloading project info from freshbooks. Run 'ttracker.py projects' to update this list"
+      manager.get_project_from_freshbooks()
+
+  def has_freshbooks_credentials(self):
+    return self.apikey and self.username
 
   def load(self):
     if os.path.exists(self.db_file):
@@ -284,10 +299,10 @@ class TaskManager(object):
     # If there already exists an active task, stop it first
     for t in self.tasks.values():
       if t.is_active():
-        t.stop(parse_or_now(starttime))
+        self.stop(starttime)
     self.tasks[name].start(self.mk_project(project_id), parse_or_now(starttime), notes or '')
 
-  def stop(self, endtime, notes):
+  def stop(self, endtime, notes=''):
     all_logged_time = []
     for t in self.tasks.values():
       for e in t.entries:
@@ -305,7 +320,7 @@ class TaskManager(object):
 
     for t in self.tasks.values():
       if t.is_active():
-        t.stop(parse_or_now(endtime), max_entry_warning, notes or '')
+        t.stop(parse_or_now(endtime), notes or '', max_entry_warning)
         return
     print "No active task"
 
@@ -366,14 +381,14 @@ class TaskManager(object):
     for t in self.all_tasks():
       print "Updating entries for '%s'..." % t.pretty_name()
       for e in t.entries:
-        if not e.freshbooks_id:
+        if not e.freshbooks_id and not e.is_active():
           print "   Syncing: %s" % e
           
           r = c.time_entry.create(time_entry={
                   'project_id': e.project.id,
                   'task_id': t.freshbooks_id,
                   'hours': e.minutes() / 60.0,
-                  'notes': e.notes,
+                  'notes': t.pretty_name() + ': ' + e.notes,
                   'date': fmt_date(e.start)})
           e.freshbooks_id = str(r.time_entry_id)
           self.save()
@@ -435,45 +450,42 @@ if __name__ == '__main__':
   arguments = docopt(__doc__, version='0.0')
 
   ttracker_db = os.environ.get('TTRACKER_DB', os.path.join(os.environ['HOME'], '.ttracker'))
-  tasks = TaskManager(ttracker_db)
-  tasks.load()
+  manager = TaskManager(ttracker_db)
 
-  # Do setup actions, if they haven't been done yet.
-  if not tasks.apikey or not tasks.username:
-    print "First time using ttracker running setup..."
-    tasks.config()
+  # Always auto-run init, if the user hasn't done so already
+  if not manager.has_freshbooks_credentials() or not manager.projects:
+    print "Initialising tracker on first use..."
+    manager.initialise(arguments['<username>'], arguments['<password>'])
 
-  if not tasks.projects:
-    print "Downloading project info from freshbooks..."
-    tasks.get_project_from_freshbooks()
+  if not manager.projects:
+    print "No Projects in freshbooks. Please create some, or get your employer to add you to theirs so you can start logging time."
+    raise SystemExit,1
 
-    # If we still don't have projects, freshbooks needs to be setup first
-    if not tasks.projects:
-      print "No Projects in freshbooks. Please create some, or get your employer to add you to theirs so you can start billing time."
-      raise SystemExit,1
-
-  if arguments['list']:
-    tasks.list()
+  if arguments['init']:
+    if manager.has_freshbooks_credentials() and manager.projects:
+      print "Already ran init, to change your freshbook credentials, use run 'ttracker.py config'. To update your local cache of projects, use 'ttracker.py projects'"
+  elif arguments['list']:
+    manager.list()
   elif arguments['delete']:
-    tasks.delete(arguments['<task>'])
+    manager.delete(arguments['<task>'])
   elif arguments['details']:
-    tasks.details(arguments['<task>'])
+    manager.details(arguments['<task>'])
   elif arguments['start']:
-    tasks.start(arguments['<task>'], arguments['<project-id>'], arguments['<starttime>'], arguments['<notes>'])
+    manager.start(arguments['<task>'], arguments['<project-id>'], arguments['<starttime>'], arguments['<notes>'])
   elif arguments['stop']:
-    tasks.stop(arguments['<endtime>'], arguments['<notes>'] or arguments['--notes'])
+    manager.stop(arguments['<endtime>'], arguments['<notes>'] or arguments['--notes'])
   elif arguments['pop']:
-    tasks.pop(arguments['<task>'])
+    manager.pop(arguments['<task>'])
   elif arguments['push']:
-    tasks.push(arguments['<task>'], arguments['<project-id>'], arguments['<starttime>'], arguments['<endtime>'], arguments['<notes>'])
+    manager.push(arguments['<task>'], arguments['<project-id>'], arguments['<starttime>'], arguments['<endtime>'], arguments['<notes>'])
   elif arguments['config']:
-    tasks.config(arguments['[<username>]'], arguments['[<password>]'])
+    manager.config(arguments['<username>'], arguments['<password>'])
   elif arguments['projects']:
     if not arguments['--display-from-cache']:
       print "Downloading project info from freshbooks... (use '--display-from-cache' to work offline)"
-      tasks.get_project_from_freshbooks()
-    tasks.display_projects()
+      manager.get_project_from_freshbooks()
+    manager.display_projects()
   elif arguments['sync']:
-    tasks.sync()
+    manager.sync()
 
-  tasks.save()
+  manager.save()
