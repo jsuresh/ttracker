@@ -1,14 +1,13 @@
-= TTracker.py =
-A command line tool to track time against tasks in freshbooks. 
+# A command line tool to track time against tasks in freshbooks. #
 
 The tool is meant to be used offline - it only syncs with freshbooks when 
 you explicitly tell it too via the sync command.
 
-==Setup==
+## Setup ##
  1. Install libraries in requirements.txt
  2. run ttracker.py init
 
-==Examples==
+## Examples ##
 Have this running in a terminal window to give you a summary of all active tasks:
 
     $ watch ttracker.py list
