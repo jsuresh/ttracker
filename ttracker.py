@@ -274,7 +274,9 @@ class TaskManager(object):
       self.projects[str(p.project_id)] = str(p.name)
 
   def display_projects(self):
-    for pid,name in self.projects.items():
+    projects = self.projects.items()
+    projects.sort()
+    for pid,name in projects:
       print pid, name
     
   def list(self):
