@@ -342,6 +342,13 @@ class TaskManager(object):
     self.tasks[name].pop()
   
   def push(self, name, project_id, starttime, endtime, notes):
+    if name not in self.tasks:
+      self.tasks[name] = Task(name)
+
+    if project_id not in self.projects:
+      print "Invalid project id - task not started. Valid projects are"
+      self.display_projects()
+
     self.tasks[name].push(self.mk_project(project_id), parse_or_now(starttime), parse_or_now(endtime), notes or '')
 
   def all_tasks(self):
