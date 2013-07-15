@@ -8,7 +8,7 @@ you explicitly tell it too via the sync command.
 
 Usage:
     ttracker.py init [<username> <apikey>]
-    ttracker.py list
+    ttracker.py list [--include-synced]
     ttracker.py delete <task>
     ttracker.py details <task>
     ttracker.py start <task> <project-id> [<starttime> <notes>]
@@ -102,15 +102,15 @@ class Task(object):
     ts = Entry(project, starttime, endtime, notes=notes)
     self.entries.append(ts)
 
-  def minutes(self):
-    return sum([e.minutes() for e in self.entries])
+  def minutes(self, include_synced):
+    return sum([e.minutes() for e in self.entries if not e.freshbooks_id or include_synced])
 
-  def hours_and_minutes(self):
-    m = self.minutes()
+  def hours_and_minutes(self, include_synced):
+    m = self.minutes(include_synced)
     return (m / 60, m % 60)
 
-  def summary(self, field_size=None):
-    hours, minutes = self.hours_and_minutes()
+  def summary(self, field_size=None, include_synced=False):
+    hours, minutes = self.hours_and_minutes(include_synced)
     active_msg = ''
     if self.is_active():
       active_msg = "(in progress, started at: %s)" % fmt_datetime(self.entries[-1].start)
@@ -176,7 +176,11 @@ class Entry(object):
     else:
       start = '  '
 
-    return "%s %s - %s\t%s\t%s" % (start, fmt_datetime(self.start), fmt_datetime(self.end_or_now()), self.minutes(), notes)
+    synced = ''
+    if self.freshbooks_id:
+      synced = '(synced)'
+
+    return "%s %s - %s\t%s\t%s %s" % (start, fmt_datetime(self.start), fmt_datetime(self.end_or_now()), self.minutes(), notes, synced)
 
   def toJSON(self):
     if self.end is not None:
@@ -279,13 +283,14 @@ class TaskManager(object):
     for pid,name in projects:
       print pid, name
     
-  def list(self):
+  def list(self, include_synced):
     ts = self.tasks.values()
     ts.sort(key=lambda t: t.name)
+    ts = [t for t in ts if t.minutes(include_synced) > 0]
     if ts:
       field_size = max([len(t.name) for t in ts])
       for t in ts:
-        print t.summary(field_size)
+        print t.summary(field_size, include_synced)
     else:
         print "No tasks, start logging time with the 'ttracker.py start' command"
 
@@ -474,7 +479,7 @@ if __name__ == '__main__':
     if manager.has_freshbooks_credentials() and manager.projects:
       print "Already ran init, to change your freshbook credentials, use run 'ttracker.py config'. To update your local cache of projects, use 'ttracker.py projects'"
   elif arguments['list']:
-    manager.list()
+    manager.list(arguments['--include-synced'])
   elif arguments['delete']:
     manager.delete(arguments['<task>'])
   elif arguments['details']:
