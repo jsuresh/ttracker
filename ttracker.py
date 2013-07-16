@@ -17,7 +17,7 @@ Usage:
     ttracker.py push <task> <project-id> <starttime> <endtime> [<notes>]
     ttracker.py config [<username> <apikey>]
     ttracker.py projects [--display-from-cache]
-    ttracker.py sync
+    ttracker.py sync --all
 
 init:
   Initialise ttracker. Should be the first command you run when you start using this script
@@ -360,7 +360,7 @@ class TaskManager(object):
     for t in self.tasks.values(): yield t
     for t in self.deleted_tasks.values(): yield t
 
-  def sync(self):
+  def sync(self, sync_all=False):
     c = self.create_freshbooks_client()
 
     print "Creating tasks..."
@@ -420,6 +420,20 @@ class TaskManager(object):
       t = self.deleted_tasks.pop(k)
       c.task.delete(task_id=t.freshbooks_id)
       self.save()
+
+    # if sync_all, just send over all entries again
+    if sync_all:
+      print "**Updating all entries**"
+      for t in self.all_tasks():
+        for e in t.entries:
+          print "   Syncing: %s" % e
+          c.time_entry.create(time_entry={
+                  'time_entry_id': e.freshbooks_id,
+                  'project_id': e.project.id,
+                  'task_id': t.freshbooks_id,
+                  'hours': e.minutes() / 60.0,
+                  'notes': t.pretty_name() + ': ' + e.notes,
+                  'date': fmt_date(e.start)})
 
 class JSONEncoder(json.JSONEncoder):
   def default(self, obj):
@@ -500,6 +514,6 @@ if __name__ == '__main__':
       manager.get_project_from_freshbooks()
     manager.display_projects()
   elif arguments['sync']:
-    manager.sync()
+    manager.sync(arguments['--all'])
 
   manager.save()
