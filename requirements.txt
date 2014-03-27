@@ -1,4 +1,4 @@
 docopt==0.6.1
-httplib2==0.8
-lxml==3.2.1
-refreshbooks==1.7.2
+lxml==3.3.3
+refreshbooks==2.0
+wsgiref==0.1.2

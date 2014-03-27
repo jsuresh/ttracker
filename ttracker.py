@@ -274,6 +274,7 @@ class TaskManager(object):
   def get_project_from_freshbooks(self):
     c = self.create_freshbooks_client()
     resp = c.project.list(per_page=5000)
+    self.projects = {}
     for p in resp.projects.project:
       self.projects[str(p.project_id)] = str(p.name)
 
@@ -299,6 +300,9 @@ class TaskManager(object):
       self.tasks[name] = Task(name)
 
     # Make sure the project is valid
+    if project_id == "0" and self.tasks[name].entries:
+      project_id = self.tasks[name].entries[-1].project.id
+
     if project_id not in self.projects:
       print "Invalid project id - task not started. Valid projects are"
       self.display_projects()
@@ -483,7 +487,7 @@ if __name__ == '__main__':
   # Always auto-run init, if the user hasn't done so already
   if not manager.has_freshbooks_credentials() or not manager.projects:
     print "Initialising tracker on first use..."
-    manager.initialise(arguments['<username>'], arguments['<password>'])
+    manager.initialise(arguments['<username>'], arguments['<apikey>'])
 
   if not manager.projects:
     print "No Projects in freshbooks. Please create some, or get your employer to add you to theirs so you can start logging time."
