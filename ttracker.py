@@ -17,7 +17,7 @@ Usage:
     ttracker.py push <task> <project-id> <starttime> <endtime> [<notes>]
     ttracker.py config [<username> <apikey>]
     ttracker.py projects [--display-from-cache]
-    ttracker.py sync --all
+    ttracker.py sync [--all]
 
 init:
   Initialise ttracker. Should be the first command you run when you start using this script
