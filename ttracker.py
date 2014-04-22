@@ -16,7 +16,8 @@ Usage:
     ttracker.py pop <task>
     ttracker.py push <task> <project-id> <starttime> <endtime> [<notes>]
     ttracker.py config [<username> <apikey>]
-    ttracker.py projects [--display-from-cache]
+    ttracker.py projects [--from-freshbooks]
+    ttracker.py nickname [--delete] [<name> <project-id>]
     ttracker.py sync [--all]
 
 init:
@@ -38,7 +39,7 @@ push:
 config: 
   Configure your freshbooks username and API key
 projects:
-  List all projects you can log time to. This is grabbed live from freshbooks unless the --display-from-cache option is enabled
+  List all projects you can log time to. This is grabbed from the local cache unless the --from-freshbooks is specified
 sync:
   The only action that modifies freshbooks - this updates freshbooks with all logged time
 """
@@ -202,6 +203,7 @@ class TaskManager(object):
     self.tasks = {}
     self.deleted_tasks = {}
     self.projects = {}
+    self.nicknames = {}
     self.username = ''
     self.apikey = ''
     self.load()
@@ -212,7 +214,7 @@ class TaskManager(object):
       self.config(username, apikey)
 
     if not self.projects:
-      print "Downloading project info from freshbooks. Run 'ttracker.py projects' to update this list"
+      print "Downloading project info from freshbooks. Run 'ttracker.py projects --from-freshbooks' to update this list"
       manager.get_project_from_freshbooks()
 
   def has_freshbooks_credentials(self):
@@ -222,6 +224,7 @@ class TaskManager(object):
     if os.path.exists(self.db_file):
       obj = json.loads(open(self.db_file).read())
       self.projects = obj.get('projects', {})
+      self.nicknames = obj.get('nicknames', {})
       self.tasks = self.decode_tasks(obj.get('tasks', {}))
       self.deleted_tasks = self.decode_tasks(obj.get('deleted_tasks', {}))
       self.username = obj.get('username', '')
@@ -258,6 +261,7 @@ class TaskManager(object):
               {'tasks': self.tasks,
                'deleted_tasks': self.deleted_tasks,
                'projects': self.projects,
+               'nicknames': self.nicknames,
                'username': self.username,
                'apikey': self.apikey},
               cls=JSONEncoder))
@@ -283,6 +287,13 @@ class TaskManager(object):
     projects.sort()
     for pid,name in projects:
       print pid, name
+
+  def set_project_nickname(self, name, project_id):
+    self.nicknames[name] = project_id
+
+  def show_nicknames(self):
+    for n in self.nicknames:
+      print n, self.projects[self.nicknames[n]], self.nicknames[n]
     
   def list(self, include_synced):
     ts = self.tasks.values()
@@ -300,12 +311,16 @@ class TaskManager(object):
       self.tasks[name] = Task(name)
 
     # Make sure the project is valid
+    if project_id in self.nicknames:
+      project_id = self.nicknames[project_id]
+
     if project_id == "0" and self.tasks[name].entries:
       project_id = self.tasks[name].entries[-1].project.id
 
     if project_id not in self.projects:
       print "Invalid project id - task not started. Valid projects are"
       self.display_projects()
+      raise SystemExit,1
 
     # If there already exists an active task, stop it first
     for t in self.tasks.values():
@@ -513,10 +528,20 @@ if __name__ == '__main__':
   elif arguments['config']:
     manager.config(arguments['<username>'], arguments['<password>'])
   elif arguments['projects']:
-    if not arguments['--display-from-cache']:
-      print "Downloading project info from freshbooks... (use '--display-from-cache' to work offline)"
+    if arguments['--from-freshbooks']:
       manager.get_project_from_freshbooks()
+    print "From cache, use '--from-freshbooks' to get the latest projects"
     manager.display_projects()
+  elif arguments['projects']:
+    if arguments['--from-freshbooks']:
+      manager.get_project_from_freshbooks()
+    print "From cache, use '--from-freshbooks' to get the latest projects"
+    manager.display_projects()
+  elif arguments['nickname']:
+    if arguments['<name>'] and arguments['<project-id>']:
+      manager.set_project_nickname(arguments['<name>'], arguments['<project-id>'])
+    else:
+      manager.show_nicknames()
   elif arguments['sync']:
     manager.sync(arguments['--all'])
 
